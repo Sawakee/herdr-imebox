@@ -47,7 +47,7 @@ pub fn run(target: &str) -> Result<()> {
             PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
         );
     }
-    let result = event_loop(&mut terminal, &mut editor, target, &draft_path, enhanced);
+    let result = event_loop(&mut terminal, &mut editor, target, &draft_path);
     if enhanced {
         let _ = crossterm::execute!(std::io::stdout(), PopKeyboardEnhancementFlags);
     }
@@ -70,11 +70,9 @@ fn event_loop(
     editor: &mut Editor,
     target: &str,
     draft_path: &Path,
-    enhanced: bool,
 ) -> Result<()> {
-    let send_key = if enhanced { "Ctrl+Enter" } else { "Ctrl+D" };
     let hint = format!(
-        "→ {target}   {send_key}: send   Ctrl+C / Esc Esc: save draft & close   Enter: newline"
+        "→ {target}   Ctrl+D: send   Ctrl+C / Esc Esc: save draft & close   Enter: newline"
     );
     let mut status = hint.clone();
     let mut top = 0usize; // first visible row
@@ -129,7 +127,7 @@ fn event_loop(
                 let was_armed = esc_armed;
                 esc_armed = false;
                 match (ctrl, key.code) {
-                    (true, KeyCode::Char('d')) | (true, KeyCode::Enter) => {
+                    (true, KeyCode::Char('d')) => {
                         if editor.is_blank() {
                             let _ = fs::remove_file(draft_path);
                             return Ok(());
