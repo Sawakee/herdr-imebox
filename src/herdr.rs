@@ -18,9 +18,14 @@ pub fn cache_dir() -> PathBuf {
     base.join("herdr-imebox")
 }
 
+/// The herdr binary: plugin actions receive it as $HERDR_BIN_PATH.
+fn herdr_bin() -> String {
+    std::env::var("HERDR_BIN_PATH").unwrap_or_else(|_| "herdr".to_owned())
+}
+
 /// Run a herdr CLI command and return its stdout.
 pub fn run(args: &[&str]) -> Result<String> {
-    let out = Command::new("herdr")
+    let out = Command::new(herdr_bin())
         .args(args)
         .output()
         .context("failed to run herdr; is it on PATH?")?;

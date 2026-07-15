@@ -36,15 +36,34 @@ visual line.
 
 ## Install
 
-Requires a Rust toolchain (stable).
+Requires herdr 0.7+ and a Rust toolchain (stable) — the plugin builds from
+source at install time.
 
 ```sh
-git clone <this-repository>
+herdr plugin install Sawakee/herdr-imebox
+```
+
+Then bind the action to a key in `~/.config/herdr/config.toml`:
+
+```toml
+[[keys.command]]
+key = "prefix+i"
+type = "shell"
+command = "herdr plugin action invoke open-imebox --plugin herdr-imebox"
+```
+
+Apply it with `herdr server reload-config`.
+
+<details>
+<summary>Manual install (without the plugin system)</summary>
+
+```sh
+git clone https://github.com/Sawakee/herdr-imebox
 cd herdr-imebox
 cargo build --release
 ```
 
-Then add a key binding to `~/.config/herdr/config.toml`:
+Bind the binary directly instead of the plugin action:
 
 ```toml
 [[keys.command]]
@@ -53,7 +72,7 @@ type = "shell"
 command = "/path/to/herdr-imebox/target/release/imebox launch"
 ```
 
-Apply it with `herdr server reload-config`.
+</details>
 
 Optionally, also enable herdr's built-in IME candidate-window fix for normal
 typing:

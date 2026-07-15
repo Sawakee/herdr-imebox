@@ -1,0 +1,26 @@
+# herdr-plugin.toml — manifest for the herdr-imebox plugin.
+#
+# An IME-friendly pop-up text box for composing CJK text and sending it to the
+# focused agent pane. Opened only by the explicit action below (bind it to a
+# key); there are no event hooks.
+
+id = "herdr-imebox"
+name = "herdr-imebox"
+version = "0.1.0"
+description = "IME-friendly pop-up text box for typing Japanese/CJK into AI agent panes."
+min_herdr_version = "0.7.0"
+platforms = ["linux", "macos"]
+
+# Build from source at install time (requires a Rust toolchain).
+[[build]]
+platforms = ["linux", "macos"]
+command = ["/bin/sh", "scripts/build.sh"]
+
+# Opens the text box below the currently focused pane. The binary does the
+# split itself over the herdr socket API, so no [[panes]] entry is needed.
+[[actions]]
+id = "open-imebox"
+platforms = ["linux", "macos"]
+title = "Open IME text box"
+description = "Open a text box below the focused pane; Ctrl+D (or Enter x3) sends the text to it."
+command = ["./target/release/imebox", "launch"]

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "IME-friendly pop-up text box for AI agent panes in herdr"
 license = "MIT"
+repository = "https://github.com/Sawakee/herdr-imebox"
 
 [dependencies]
 anyhow = "1"
