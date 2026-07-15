@@ -138,7 +138,8 @@ fn event_loop(
                     }
                     (true, KeyCode::Char('a')) => editor.move_home(),
                     (true, KeyCode::Char('e')) => editor.move_end(),
-                    (_, KeyCode::Enter) => editor.insert_newline(),
+                    // terminals send a raw \n as Ctrl+J
+                    (_, KeyCode::Enter) | (true, KeyCode::Char('j')) => editor.insert_newline(),
                     (_, KeyCode::Backspace) => editor.backspace(),
                     (_, KeyCode::Delete) => editor.delete(),
                     (_, KeyCode::Left) => editor.move_left(),
