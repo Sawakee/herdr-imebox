@@ -27,7 +27,12 @@ When you are done, one keystroke sends the whole message to the agent pane.
    triple-Enter are stripped before sending. (An IME's conversion-confirm
    Enter never reaches the box, so it doesn't count toward the three.)
 4. `Ctrl+C` / `Esc Esc` closes the box, saving your draft. It is restored the
-   next time the box opens.
+   next time the box opens for that pane (drafts are kept per target pane).
+5. `Ctrl+P` / `Ctrl+N` walk back / forward through previously sent messages,
+   so you can tweak and resend an earlier prompt.
+
+Long lines soft-wrap to the box width (CJK-width aware); Up/Down move by
+visual line.
 
 ## Install
 
@@ -58,6 +63,17 @@ typing:
 reveal_hidden_cursor_for_cjk_ime = true
 ```
 
+## Configuration
+
+Optional, at `~/.config/herdr-imebox/config.toml` (or under
+`$XDG_CONFIG_HOME`). Defaults shown:
+
+```toml
+ratio = 0.25             # box height as a fraction of the target pane
+triple_enter_send = true # three consecutive Enters send the message
+history_size = 100       # sent messages kept for Ctrl+P / Ctrl+N recall
+```
+
 ## How it works
 
 A single binary with two subcommands:
@@ -71,5 +87,5 @@ A single binary with two subcommands:
 - Multi-line text is wrapped in bracketed-paste sequences, so agents such as
   Claude Code receive it as a single message with embedded newlines.
 - If sending fails (e.g. the target pane is gone), the draft is kept and an
-  error is shown in the status bar. Drafts and the lock file live in
-  `~/.cache/herdr-imebox/`.
+  error is shown in the status bar. Per-pane drafts, the sent-message
+  history, and the lock file live in `~/.cache/herdr-imebox/`.

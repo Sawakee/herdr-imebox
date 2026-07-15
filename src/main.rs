@@ -1,6 +1,9 @@
 mod app;
+mod config;
 mod editor;
 mod herdr;
+mod history;
+mod wrap;
 
 use anyhow::Result;
 

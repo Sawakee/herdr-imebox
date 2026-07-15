@@ -1,10 +1,7 @@
 //! Minimal multi-line text editor state.
 //!
 //! Kept free of terminal I/O so it can be unit tested. Cursor columns are
-//! character offsets; display widths (CJK double-width) are computed
-//! separately for rendering.
-
-use unicode_width::UnicodeWidthChar;
+//! character offsets; display widths (CJK double-width) live in `wrap`.
 
 pub struct Editor {
     pub lines: Vec<String>,
@@ -110,20 +107,6 @@ impl Editor {
         }
     }
 
-    pub fn move_up(&mut self) {
-        if self.row > 0 {
-            self.row -= 1;
-            self.col = self.col.min(self.line_len(self.row));
-        }
-    }
-
-    pub fn move_down(&mut self) {
-        if self.row + 1 < self.lines.len() {
-            self.row += 1;
-            self.col = self.col.min(self.line_len(self.row));
-        }
-    }
-
     pub fn move_home(&mut self) {
         self.col = 0;
     }
@@ -131,47 +114,6 @@ impl Editor {
     pub fn move_end(&mut self) {
         self.col = self.line_len(self.row);
     }
-
-    /// Display cells between the start of the line and the cursor.
-    pub fn cursor_x(&self) -> usize {
-        self.lines[self.row]
-            .chars()
-            .take(self.col)
-            .map(|c| c.width().unwrap_or(0))
-            .sum()
-    }
-}
-
-/// The part of `line` visible in a viewport of `width` display cells starting
-/// at cell `left`. Double-width characters cut by an edge become a space.
-pub fn visible_slice(line: &str, left: usize, width: usize) -> String {
-    let mut out = String::new();
-    let mut x = 0usize;
-    for c in line.chars() {
-        let w = c.width().unwrap_or(0);
-        if w == 0 {
-            continue;
-        }
-        if x + w <= left {
-            x += w;
-            continue;
-        }
-        if x < left {
-            // wide char straddling the left edge
-            out.push(' ');
-            x += w;
-            continue;
-        }
-        if x + w > left + width {
-            if x < left + width {
-                out.push(' '); // wide char straddling the right edge
-            }
-            break;
-        }
-        out.push(c);
-        x += w;
-    }
-    out
 }
 
 #[cfg(test)]
@@ -239,38 +181,14 @@ mod tests {
     }
 
     #[test]
-    fn movement_wraps_lines_and_clamps() {
+    fn movement_wraps_lines() {
         let mut ed = Editor::from_text("あいう\na");
         ed.move_left(); // (1,0)
         ed.move_left(); // wraps to end of line 0 → (0,3)
         assert_eq!((ed.row, ed.col), (0, 3));
         ed.move_right(); // wraps to (1,0)
         assert_eq!((ed.row, ed.col), (1, 0));
-        ed.move_up();
         ed.move_end();
-        ed.move_down(); // col clamps to line length 1
         assert_eq!((ed.row, ed.col), (1, 1));
-    }
-
-    #[test]
-    fn cursor_x_counts_cjk_double_width() {
-        let mut ed = Editor::from_text("あaい");
-        ed.col = 2; // after あ and a
-        assert_eq!(ed.cursor_x(), 3);
-    }
-
-    #[test]
-    fn visible_slice_plain() {
-        assert_eq!(visible_slice("abcdef", 0, 4), "abcd");
-        assert_eq!(visible_slice("abcdef", 2, 4), "cdef");
-        assert_eq!(visible_slice("abc", 0, 10), "abc");
-    }
-
-    #[test]
-    fn visible_slice_wide_chars() {
-        // あいう = cells 0-1, 2-3, 4-5
-        assert_eq!(visible_slice("あいう", 0, 4), "あい");
-        assert_eq!(visible_slice("あいう", 1, 4), " い "); // あ and う cut by edges
-        assert_eq!(visible_slice("あいう", 2, 4), "いう");
     }
 }

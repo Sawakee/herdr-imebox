@@ -111,6 +111,9 @@ pub fn launch() -> Result<()> {
         let _ = fs::remove_file(&lock); // stale lock
     }
 
+    // herdr's --ratio is the share kept by the ORIGINAL pane, so the box
+    // gets 1 - ratio; config `ratio` is the box's share.
+    let box_ratio = crate::config::Config::load().ratio.clamp(0.05, 0.9);
     let split = run(&[
         "pane",
         "split",
@@ -118,7 +121,7 @@ pub fn launch() -> Result<()> {
         "--direction",
         "down",
         "--ratio",
-        "0.25",
+        &format!("{}", 1.0 - box_ratio),
         "--focus",
     ])?;
     let new_pane = split_pane_id(&split)?;
