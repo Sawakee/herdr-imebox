@@ -36,8 +36,9 @@ visual line.
 
 ## Install
 
-Requires herdr 0.7+ and a Rust toolchain (stable) — the plugin builds from
-source at install time.
+Requires herdr 0.7+. The install step downloads a prebuilt, SHA-256-verified
+binary for your platform (macOS arm64/x86_64, Linux x86_64/arm64) — no Rust
+toolchain needed.
 
 ```sh
 herdr plugin install Sawakee/herdr-imebox

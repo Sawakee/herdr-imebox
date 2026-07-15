@@ -11,10 +11,11 @@ description = "IME-friendly pop-up text box for typing Japanese/CJK into AI agen
 min_herdr_version = "0.7.0"
 platforms = ["linux", "macos"]
 
-# Build from source at install time (requires a Rust toolchain).
+# Install step: downloads the prebuilt release binary for this version and
+# platform (SHA-256 verified) into bin/. No Rust toolchain needed.
 [[build]]
 platforms = ["linux", "macos"]
-command = ["/bin/sh", "scripts/build.sh"]
+command = ["/bin/sh", "scripts/fetch.sh"]
 
 # Opens the text box below the currently focused pane. The binary does the
 # split itself over the herdr socket API, so no [[panes]] entry is needed.
@@ -23,4 +24,4 @@ id = "open-imebox"
 platforms = ["linux", "macos"]
 title = "Open IME text box"
 description = "Open a text box below the focused pane; Ctrl+D (or Enter x3) sends the text to it."
-command = ["./target/release/imebox", "launch"]
+command = ["./bin/imebox", "launch"]
