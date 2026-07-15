@@ -22,7 +22,10 @@ When you are done, one keystroke sends the whole message to the agent pane.
 1. Focus the agent pane you are talking to and press the bound key
    (e.g. `prefix+i`).
 2. A text box opens below the pane. Type freely — Enter is just a newline.
-3. `Ctrl+D` sends the text (plus Enter) to the agent and closes the box.
+3. `Ctrl+Enter` sends the text (plus Enter) to the agent and closes the box.
+   `Ctrl+D` also sends, and is the fallback on terminals without the kitty
+   keyboard protocol, where Ctrl+Enter is indistinguishable from Enter (the
+   status bar shows which send key is active).
 4. `Ctrl+C` / `Esc Esc` closes the box, saving your draft. It is restored the
    next time the box opens.
 

@@ -5,6 +5,7 @@ use crate::herdr;
 use anyhow::Result;
 use crossterm::event::{
     self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEventKind, KeyModifiers,
+    KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
 };
 use ratatui::layout::{Constraint, Layout, Position};
 use ratatui::style::{Modifier, Style};
@@ -37,7 +38,19 @@ pub fn run(target: &str) -> Result<()> {
 
     let mut terminal = ratatui::init(); // raw mode + alternate screen + panic hook
     let _ = crossterm::execute!(std::io::stdout(), EnableBracketedPaste);
-    let result = event_loop(&mut terminal, &mut editor, target, &draft_path);
+    // With the kitty keyboard protocol, Ctrl+Enter becomes distinguishable
+    // from Enter (and modified keys stop leaking in as escape-sequence text).
+    let enhanced = crossterm::terminal::supports_keyboard_enhancement().unwrap_or(false);
+    if enhanced {
+        let _ = crossterm::execute!(
+            std::io::stdout(),
+            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+        );
+    }
+    let result = event_loop(&mut terminal, &mut editor, target, &draft_path, enhanced);
+    if enhanced {
+        let _ = crossterm::execute!(std::io::stdout(), PopKeyboardEnhancementFlags);
+    }
     let _ = crossterm::execute!(std::io::stdout(), DisableBracketedPaste);
     ratatui::restore();
     result
@@ -57,9 +70,11 @@ fn event_loop(
     editor: &mut Editor,
     target: &str,
     draft_path: &Path,
+    enhanced: bool,
 ) -> Result<()> {
+    let send_key = if enhanced { "Ctrl+Enter" } else { "Ctrl+D" };
     let hint = format!(
-        "→ {target}   Ctrl+D: send   Ctrl+C / Esc Esc: save draft & close   Enter: newline"
+        "→ {target}   {send_key}: send   Ctrl+C / Esc Esc: save draft & close   Enter: newline"
     );
     let mut status = hint.clone();
     let mut top = 0usize; // first visible row
@@ -114,7 +129,7 @@ fn event_loop(
                 let was_armed = esc_armed;
                 esc_armed = false;
                 match (ctrl, key.code) {
-                    (true, KeyCode::Char('d')) => {
+                    (true, KeyCode::Char('d')) | (true, KeyCode::Enter) => {
                         if editor.is_blank() {
                             let _ = fs::remove_file(draft_path);
                             return Ok(());
