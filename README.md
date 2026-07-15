@@ -22,7 +22,10 @@ When you are done, one keystroke sends the whole message to the agent pane.
 1. Focus the agent pane you are talking to and press the bound key
    (e.g. `prefix+i`).
 2. A text box opens below the pane. Type freely — Enter is just a newline.
-3. `Ctrl+D` sends the text (plus Enter) to the agent and closes the box.
+3. `Ctrl+D` — or pressing Enter three times in a row — sends the text (plus
+   Enter) to the agent and closes the box. The two blank newlines from the
+   triple-Enter are stripped before sending. (An IME's conversion-confirm
+   Enter never reaches the box, so it doesn't count toward the three.)
 4. `Ctrl+C` / `Esc Esc` closes the box, saving your draft. It is restored the
    next time the box opens.
 

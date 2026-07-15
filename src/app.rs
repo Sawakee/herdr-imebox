@@ -65,6 +65,25 @@ fn save_draft(editor: &Editor, draft_path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Send the buffer to the target pane. `Ok` means the app should exit
+/// (sent, or nothing to send); `Err` carries a status-bar message.
+fn attempt_send(editor: &Editor, target: &str, draft_path: &Path) -> Result<(), String> {
+    if editor.is_blank() {
+        let _ = fs::remove_file(draft_path);
+        return Ok(());
+    }
+    let text = editor.text();
+    // keep the text even if sending crashes
+    fs::write(draft_path, &text).map_err(|e| format!("cannot save draft: {e}"))?;
+    match herdr::send_to_pane(target, &text) {
+        Ok(()) => {
+            let _ = fs::remove_file(draft_path);
+            Ok(())
+        }
+        Err(e) => Err(format!("send failed: {e} (draft saved)")),
+    }
+}
+
 fn event_loop(
     terminal: &mut ratatui::DefaultTerminal,
     editor: &mut Editor,
@@ -72,12 +91,13 @@ fn event_loop(
     draft_path: &Path,
 ) -> Result<()> {
     let hint = format!(
-        "→ {target}   Ctrl+D: send   Ctrl+C / Esc Esc: save draft & close   Enter: newline"
+        "→ {target}   Ctrl+D / Enter×3: send   Ctrl+C / Esc Esc: save draft & close   Enter: newline"
     );
     let mut status = hint.clone();
     let mut top = 0usize; // first visible row
     let mut left = 0usize; // horizontal scroll in display cells
     let mut esc_armed = false;
+    let mut enter_streak = 0u8; // consecutive Enter presses; the 3rd sends
 
     loop {
         terminal.draw(|f| {
@@ -126,22 +146,13 @@ fn event_loop(
                 let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
                 let was_armed = esc_armed;
                 esc_armed = false;
+                let streak = enter_streak;
+                enter_streak = 0;
                 match (ctrl, key.code) {
-                    (true, KeyCode::Char('d')) => {
-                        if editor.is_blank() {
-                            let _ = fs::remove_file(draft_path);
-                            return Ok(());
-                        }
-                        let text = editor.text();
-                        fs::write(draft_path, &text)?; // keep the text even if sending crashes
-                        match herdr::send_to_pane(target, &text) {
-                            Ok(()) => {
-                                let _ = fs::remove_file(draft_path);
-                                return Ok(());
-                            }
-                            Err(e) => status = format!("send failed: {e} (draft saved)"),
-                        }
-                    }
+                    (true, KeyCode::Char('d')) => match attempt_send(editor, target, draft_path) {
+                        Ok(()) => return Ok(()),
+                        Err(msg) => status = msg,
+                    },
                     (true, KeyCode::Char('c')) => return save_draft(editor, draft_path),
                     (_, KeyCode::Esc) => {
                         if was_armed {
@@ -152,7 +163,21 @@ fn event_loop(
                     (true, KeyCode::Char('a')) => editor.move_home(),
                     (true, KeyCode::Char('e')) => editor.move_end(),
                     // terminals send a raw \n as Ctrl+J
-                    (_, KeyCode::Enter) | (true, KeyCode::Char('j')) => editor.insert_newline(),
+                    (_, KeyCode::Enter) | (true, KeyCode::Char('j')) => {
+                        if streak >= 2 {
+                            // 3rd consecutive Enter sends; drop the two
+                            // newlines the first two presses inserted
+                            editor.backspace();
+                            editor.backspace();
+                            match attempt_send(editor, target, draft_path) {
+                                Ok(()) => return Ok(()),
+                                Err(msg) => status = msg,
+                            }
+                        } else {
+                            editor.insert_newline();
+                            enter_streak = streak + 1;
+                        }
+                    }
                     (_, KeyCode::Backspace) => editor.backspace(),
                     (_, KeyCode::Delete) => editor.delete(),
                     (_, KeyCode::Left) => editor.move_left(),
@@ -169,6 +194,7 @@ fn event_loop(
                 }
             }
             Event::Paste(s) => {
+                enter_streak = 0;
                 let s = s.replace("\r\n", "\n").replace('\r', "\n");
                 editor.insert_str(&s);
             }
