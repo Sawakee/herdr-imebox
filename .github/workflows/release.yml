@@ -17,12 +17,23 @@ jobs:
           - { target: aarch64-apple-darwin, os: macos-latest }
           - { target: x86_64-apple-darwin, os: macos-latest }
           - { target: x86_64-unknown-linux-musl, os: ubuntu-latest }
-          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm }
+          # gnu, not musl: keeps the arm job free of apt (musl-tools), which
+          # has proven flaky to install on the arm runners. 22.04 for an older
+          # glibc baseline.
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04-arm }
     steps:
       - uses: actions/checkout@v4
       - run: rustup target add ${{ matrix.target }}
       - if: contains(matrix.target, 'musl')
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
+        # mirror hiccups are the common failure here; retry at both levels
+        run: |
+          for i in 1 2 3; do
+            sudo apt-get update -o Acquire::Retries=3 &&
+            sudo apt-get install -y -o Acquire::Retries=3 musl-tools && exit 0
+            echo "apt attempt $i failed; retrying in 15s" >&2
+            sleep 15
+          done
+          exit 1
       - run: cargo build --release --target ${{ matrix.target }}
       - run: tar -czf imebox-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
           -C target/${{ matrix.target }}/release imebox

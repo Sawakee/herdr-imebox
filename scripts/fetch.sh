@@ -13,7 +13,7 @@ case "$(uname -s)/$(uname -m)" in
     Darwin/arm64)          TARGET=aarch64-apple-darwin ;;
     Darwin/x86_64)         TARGET=x86_64-apple-darwin ;;
     Linux/x86_64)          TARGET=x86_64-unknown-linux-musl ;;
-    Linux/aarch64 | Linux/arm64) TARGET=aarch64-unknown-linux-musl ;;
+    Linux/aarch64 | Linux/arm64) TARGET=aarch64-unknown-linux-gnu ;;
 esac
 if [ -z "$TARGET" ]; then
     echo "herdr-imebox: no prebuilt binary for $(uname -s)/$(uname -m)." >&2
