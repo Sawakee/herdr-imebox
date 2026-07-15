@@ -4,7 +4,9 @@
 set -eu
 
 if command -v rustup >/dev/null 2>&1 && CARGO=$(rustup which cargo 2>/dev/null); then
-    : # prefer the real toolchain binary (robust against broken cargo shims)
+    # Prefer the real toolchain binaries (robust against broken cargo/rustc
+    # shims); RUSTC keeps cargo from picking a broken shim off PATH.
+    RUSTC=$(rustup which rustc 2>/dev/null) && export RUSTC
 elif command -v cargo >/dev/null 2>&1; then
     CARGO=cargo
 elif [ -x "$HOME/.cargo/bin/cargo" ]; then
