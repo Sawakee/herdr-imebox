@@ -3,6 +3,7 @@ mod config;
 mod editor;
 mod herdr;
 mod history;
+mod picker;
 mod wrap;
 
 use anyhow::Result;

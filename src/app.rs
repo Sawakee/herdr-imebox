@@ -4,13 +4,14 @@ use crate::config::Config;
 use crate::editor::Editor;
 use crate::herdr;
 use crate::history;
+use crate::picker::{self, Picker};
 use crate::wrap;
 use anyhow::Result;
 use crossterm::event::{
     self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEventKind, KeyModifiers,
     KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
 };
-use ratatui::layout::{Constraint, Layout, Position};
+use ratatui::layout::{Constraint, Layout, Position, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
@@ -131,6 +132,63 @@ fn move_vertical(editor: &mut Editor, delta: isize, width: usize) {
     editor.col = wrap::col_at_x(&editor.lines[s.row], s.start, s.end, x);
 }
 
+/// The Ctrl+R history view: a query line on top, matches below (newest
+/// first, selection reversed), key hints in the bar.
+fn draw_picker(f: &mut ratatui::Frame, p: &mut Picker, hist: &[String], body: Rect, bar: Rect) {
+    let [query_row, list] =
+        Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(body);
+    f.render_widget(Paragraph::new(format!("> {}", p.query)), query_row);
+    let h = list.height as usize;
+    if h > 0 {
+        // scroll to keep the selected row visible
+        if p.selected < p.top {
+            p.top = p.selected;
+        }
+        if p.selected >= p.top + h {
+            p.top = p.selected + 1 - h;
+        }
+        let lines: Vec<Line> = if p.matches.is_empty() {
+            let msg = if hist.is_empty() {
+                "(no history)"
+            } else {
+                "(no match)"
+            };
+            vec![Line::styled(
+                msg,
+                Style::default().add_modifier(Modifier::DIM),
+            )]
+        } else {
+            p.matches
+                .iter()
+                .enumerate()
+                .skip(p.top)
+                .take(h)
+                .map(|(i, &hi)| {
+                    let line = Line::raw(picker::flatten(&hist[hi]));
+                    if i == p.selected {
+                        line.style(Style::default().add_modifier(Modifier::REVERSED))
+                    } else {
+                        line
+                    }
+                })
+                .collect()
+        };
+        f.render_widget(Paragraph::new(lines), list);
+    }
+    // Keep the hardware cursor at the end of the query: macOS IMEs anchor
+    // their candidate window to it.
+    let x = 2 + wrap::width_range(&p.query, 0, p.query.chars().count());
+    f.set_cursor_position(Position::new(
+        query_row.x + x.min(query_row.width.saturating_sub(1) as usize) as u16,
+        query_row.y,
+    ));
+    f.render_widget(
+        Paragraph::new("Enter: use   ↑↓ ^P ^N: move   Esc / ^R: cancel")
+            .style(Style::default().add_modifier(Modifier::REVERSED)),
+        bar,
+    );
+}
+
 fn event_loop(
     terminal: &mut ratatui::DefaultTerminal,
     editor: &mut Editor,
@@ -145,7 +203,7 @@ fn event_loop(
         "^D: send"
     };
     let hint =
-        format!("→ {target}   {send_hint}   ^P ^N: history   ^C / Esc Esc: close (draft saved)");
+        format!("→ {target}   {send_hint}   ^P ^N ^R: history   ^C / Esc Esc: close (draft saved)");
     let mut status = hint.clone();
     let mut top = 0usize; // first visible visual row
     let mut body_width = 0usize; // last rendered text width, for Up/Down
@@ -155,11 +213,16 @@ fn event_loop(
     let hist = history::load(history_path);
     let mut hist_pos: Option<usize> = None; // index into hist while browsing
     let mut stash = String::new(); // buffer text before browsing started
+    let mut picker: Option<Picker> = None; // Some while the Ctrl+R view is open
 
     loop {
         terminal.draw(|f| {
             let [body, bar] =
                 Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(f.area());
+            if let Some(p) = picker.as_mut() {
+                draw_picker(f, p, &hist, body, bar);
+                return;
+            }
             let (w, h) = (body.width as usize, body.height as usize);
             body_width = w;
             if w > 0 && h > 0 {
@@ -200,6 +263,27 @@ fn event_loop(
                 esc_armed = false;
                 let streak = enter_streak;
                 enter_streak = 0;
+                if let Some(p) = picker.as_mut() {
+                    match (ctrl, key.code) {
+                        (true, KeyCode::Char('r' | 'c')) | (_, KeyCode::Esc) => picker = None,
+                        (_, KeyCode::Enter) | (true, KeyCode::Char('j')) => {
+                            if let Some(idx) = p.current() {
+                                if hist_pos.is_none() {
+                                    stash = editor.text();
+                                }
+                                *editor = Editor::from_text(&hist[idx]);
+                                hist_pos = Some(idx);
+                                picker = None;
+                            }
+                        }
+                        (_, KeyCode::Up) | (true, KeyCode::Char('p')) => p.move_up(),
+                        (_, KeyCode::Down) | (true, KeyCode::Char('n')) => p.move_down(),
+                        (_, KeyCode::Backspace) => p.pop_char(&hist),
+                        (false, KeyCode::Char(c)) => p.push_char(c, &hist),
+                        _ => {}
+                    }
+                    continue;
+                }
                 match (ctrl, key.code) {
                     (true, KeyCode::Char('d')) => {
                         match attempt_send(
@@ -241,6 +325,7 @@ fn event_loop(
                             }
                         }
                     }
+                    (true, KeyCode::Char('r')) => picker = Some(Picker::new(&hist)),
                     (true, KeyCode::Char('a')) => editor.move_home(),
                     (true, KeyCode::Char('e')) => editor.move_end(),
                     // terminals send a raw \n as Ctrl+J
@@ -290,6 +375,16 @@ fn event_loop(
             }
             Event::Paste(s) => {
                 enter_streak = 0;
+                if let Some(p) = picker.as_mut() {
+                    // paste into the query; newlines become plain spaces
+                    for c in s
+                        .chars()
+                        .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
+                    {
+                        p.push_char(c, &hist);
+                    }
+                    continue;
+                }
                 hist_pos = None;
                 let s = s.replace("\r\n", "\n").replace('\r', "\n");
                 editor.insert_str(&s);

@@ -30,6 +30,10 @@ When you are done, one keystroke sends the whole message to the agent pane.
    next time the box opens for that pane (drafts are kept per target pane).
 5. `Ctrl+P` / `Ctrl+N` walk back / forward through previously sent messages,
    so you can tweak and resend an earlier prompt.
+6. `Ctrl+R` opens a full-pane history search: type to filter (whitespace-
+   separated words are AND-ed, ASCII case-insensitive), move with `↑` `↓` /
+   `Ctrl+P` `Ctrl+N`, pick with Enter to load it into the editor, or cancel
+   with `Esc` / `Ctrl+R`.
 
 Long lines soft-wrap to the box width (CJK-width aware); Up/Down move by
 visual line.
