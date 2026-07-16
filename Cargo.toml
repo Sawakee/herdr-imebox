@@ -1,6 +1,6 @@
 [package]
 name = "imebox"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "IME-friendly pop-up text box for AI agent panes in herdr"
 license = "MIT"

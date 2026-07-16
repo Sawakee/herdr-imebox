@@ -27,26 +27,20 @@ impl Drop for LockGuard {
     }
 }
 
-fn sanitize_id(id: &str) -> String {
-    id.chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect()
-}
-
 pub fn run(target: &str) -> Result<()> {
     let cfg = Config::load();
     let dir = herdr::cache_dir();
     fs::create_dir_all(&dir)?;
 
     // one draft per target pane, migrating the old single draft file
-    let draft_path = dir.join(format!("draft-{}.txt", sanitize_id(target)));
+    let draft_path = dir.join(format!("draft-{}.txt", herdr::sanitize_id(target)));
     let legacy_draft = dir.join("draft.txt");
     if !draft_path.exists() && legacy_draft.exists() {
         let _ = fs::rename(&legacy_draft, &draft_path);
     }
     let history_path = dir.join("history.jsonl");
 
-    let lock_path = dir.join("lock");
+    let lock_path = dir.join(format!("lock-{}", herdr::sanitize_id(target)));
     if let Ok(pane_id) = std::env::var("HERDR_PANE_ID") {
         fs::write(&lock_path, pane_id)?;
     }

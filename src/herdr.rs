@@ -94,6 +94,41 @@ fn sh_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+/// Lock-file-safe form of a pane id (also used for draft file names).
+pub fn sanitize_id(id: &str) -> String {
+    id.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect()
+}
+
+/// What `launch` should do for `target`, given the box pane id locked for
+/// this target (if any), the box pane ids of every open box, and the
+/// current pane list.
+#[derive(Debug, PartialEq, Eq)]
+pub enum LaunchPlan {
+    /// The focused pane is itself a box: do nothing.
+    Noop,
+    /// This target already has a live box: focus it.
+    Focus(String),
+    /// Open a new box (any lock for this target is stale).
+    Split,
+}
+
+pub fn plan_launch(
+    target: &str,
+    own_lock: Option<&str>,
+    all_locks: &[String],
+    pane_list_json: &str,
+) -> LaunchPlan {
+    if all_locks.iter().any(|b| b == target) {
+        return LaunchPlan::Noop;
+    }
+    match own_lock {
+        Some(b) if pane_exists(pane_list_json, b) => LaunchPlan::Focus(b.to_owned()),
+        _ => LaunchPlan::Split,
+    }
+}
+
 /// Keybinding entry point: open the text box below the focused pane.
 pub fn launch() -> Result<()> {
     let list = run(&["pane", "list"])?;
@@ -103,17 +138,34 @@ pub fn launch() -> Result<()> {
 
     let dir = cache_dir();
     fs::create_dir_all(&dir)?;
-    let lock = dir.join("lock");
-    if let Ok(existing) = fs::read_to_string(&lock) {
-        let existing = existing.trim();
-        if existing == target {
-            return Ok(()); // the box itself is focused
-        }
-        if pane_exists(&list, existing) {
-            let _ = run(&["agent", "focus", existing]);
+    let _ = fs::remove_file(dir.join("lock")); // pre-0.1.2 global lock
+
+    // one lock per target pane: lock-<target> holds that target's box pane id
+    let own_path = dir.join(format!("lock-{}", sanitize_id(&target)));
+    let own_lock = fs::read_to_string(&own_path)
+        .ok()
+        .map(|s| s.trim().to_owned());
+    let all_locks: Vec<String> = fs::read_dir(&dir)
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter(|e| e.file_name().to_string_lossy().starts_with("lock-"))
+                .filter_map(|e| fs::read_to_string(e.path()).ok())
+                .map(|s| s.trim().to_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    match plan_launch(&target, own_lock.as_deref(), &all_locks, &list) {
+        LaunchPlan::Noop => return Ok(()),
+        LaunchPlan::Focus(box_pane) => {
+            let _ = run(&["agent", "focus", &box_pane]);
             return Ok(());
         }
-        let _ = fs::remove_file(&lock); // stale lock
+        LaunchPlan::Split => {
+            if own_lock.is_some() {
+                let _ = fs::remove_file(&own_path); // stale lock
+            }
+        }
     }
 
     // herdr's --ratio is the share kept by the ORIGINAL pane, so the box
@@ -186,5 +238,53 @@ mod tests {
     fn quotes_shell_args() {
         assert_eq!(sh_quote("plain"), "'plain'");
         assert_eq!(sh_quote("it's"), "'it'\\''s'");
+    }
+
+    // PANE_LIST panes: w1A:p2 (focused) and w1A:p4.
+    fn locks(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn launch_with_no_locks_splits() {
+        assert_eq!(
+            plan_launch("w1A:p2", None, &[], PANE_LIST),
+            LaunchPlan::Split
+        );
+    }
+
+    #[test]
+    fn launch_focuses_this_targets_live_box() {
+        assert_eq!(
+            plan_launch("w1A:p2", Some("w1A:p4"), &locks(&["w1A:p4"]), PANE_LIST),
+            LaunchPlan::Focus("w1A:p4".to_owned())
+        );
+    }
+
+    #[test]
+    fn launch_from_inside_a_box_is_a_noop() {
+        // the focused pane w1A:p2 is registered as some target's box
+        assert_eq!(
+            plan_launch("w1A:p2", None, &locks(&["w1A:p2"]), PANE_LIST),
+            LaunchPlan::Noop
+        );
+    }
+
+    #[test]
+    fn another_targets_box_does_not_capture_the_launch() {
+        // w1A:p4 is a box serving some other pane; w1A:p2 still gets its own
+        assert_eq!(
+            plan_launch("w1A:p2", None, &locks(&["w1A:p4"]), PANE_LIST),
+            LaunchPlan::Split
+        );
+    }
+
+    #[test]
+    fn stale_lock_splits_again() {
+        // this target's box pane w1A:p9 no longer exists
+        assert_eq!(
+            plan_launch("w1A:p2", Some("w1A:p9"), &locks(&["w1A:p9"]), PANE_LIST),
+            LaunchPlan::Split
+        );
     }
 }
