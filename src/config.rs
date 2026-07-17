@@ -8,8 +8,9 @@ use std::path::PathBuf;
 pub struct Config {
     /// Height of the text box as a fraction of the target pane.
     pub ratio: f64,
-    /// Whether three consecutive Enter presses send the message.
-    pub triple_enter_send: bool,
+    /// Number of consecutive Enter presses that send the message
+    /// (the blank newlines they typed are stripped first); 0 disables.
+    pub enter_send_count: usize,
     /// Maximum number of sent messages kept in the history file.
     pub history_size: usize,
 }
@@ -18,7 +19,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             ratio: 0.25,
-            triple_enter_send: true,
+            enter_send_count: 2,
             history_size: 100,
         }
     }
@@ -59,10 +60,16 @@ mod tests {
 
     #[test]
     fn partial_override() {
-        let cfg: Config = toml::from_str("ratio = 0.4\ntriple_enter_send = false").unwrap();
+        let cfg: Config = toml::from_str("ratio = 0.4\nenter_send_count = 3").unwrap();
         assert_eq!(cfg.ratio, 0.4);
-        assert!(!cfg.triple_enter_send);
+        assert_eq!(cfg.enter_send_count, 3);
         assert_eq!(cfg.history_size, 100);
+    }
+
+    #[test]
+    fn default_is_double_enter() {
+        let cfg: Config = toml::from_str("").unwrap();
+        assert_eq!(cfg.enter_send_count, 2);
     }
 
     #[test]

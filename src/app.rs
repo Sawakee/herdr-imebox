@@ -191,10 +191,10 @@ fn event_loop(
     history_path: &Path,
     cfg: &Config,
 ) -> Result<()> {
-    let send_hint = if cfg.triple_enter_send {
-        "^D / Enter×3: send"
+    let send_hint = if cfg.enter_send_count >= 2 {
+        format!("^D / Enter×{}: send", cfg.enter_send_count)
     } else {
-        "^D: send"
+        "^D: send".to_owned()
     };
     let hint =
         format!("→ {target}   {send_hint}   ^P ^N ^R: history   ^C / Esc Esc: close (draft saved)");
@@ -325,11 +325,13 @@ fn event_loop(
                     // terminals send a raw \n as Ctrl+J
                     (_, KeyCode::Enter) | (true, KeyCode::Char('j')) => {
                         hist_pos = None;
-                        if cfg.triple_enter_send && streak >= 2 {
-                            // 3rd consecutive Enter sends; drop the two
-                            // newlines the first two presses inserted
-                            editor.backspace();
-                            editor.backspace();
+                        if cfg.enter_send_count >= 2 && streak as usize + 1 >= cfg.enter_send_count
+                        {
+                            // the Nth consecutive Enter sends; drop the
+                            // newlines the earlier presses inserted
+                            for _ in 1..cfg.enter_send_count {
+                                editor.backspace();
+                            }
                             match attempt_send(
                                 editor,
                                 target,
@@ -342,7 +344,7 @@ fn event_loop(
                             }
                         } else {
                             editor.insert_newline();
-                            enter_streak = streak + 1;
+                            enter_streak = streak.saturating_add(1);
                         }
                     }
                     (_, KeyCode::Backspace) => {

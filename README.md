@@ -22,10 +22,12 @@ When you are done, one keystroke sends the whole message to the agent pane.
 1. Focus the agent pane you are talking to and press the bound key
    (e.g. `prefix+i`).
 2. A text box opens below the pane. Type freely — Enter is just a newline.
-3. `Ctrl+D` — or pressing Enter three times in a row — sends the text (plus
-   Enter) to the agent and closes the box. The two blank newlines from the
-   triple-Enter are stripped before sending. (An IME's conversion-confirm
-   Enter never reaches the box, so it doesn't count toward the three.)
+3. `Ctrl+D` — or pressing Enter twice in a row — sends the text (plus
+   Enter) to the agent and closes the box. The blank newline from the
+   double-Enter is stripped before sending. (An IME's conversion-confirm
+   Enter never reaches the box, so it doesn't count toward the two.)
+   The count is configurable via `enter_send_count`; set it to 3 if you
+   want double-Enter to keep inserting blank lines instead.
 4. `Ctrl+C` / `Esc Esc` closes the box, saving your draft. It is restored the
    next time the box opens for that pane (drafts are kept per target pane).
 5. `Ctrl+P` / `Ctrl+N` walk back / forward through previously sent messages,
@@ -93,9 +95,9 @@ Optional, at `~/.config/herdr-imebox/config.toml` (or under
 `$XDG_CONFIG_HOME`). Defaults shown:
 
 ```toml
-ratio = 0.25             # box height as a fraction of the target pane
-triple_enter_send = true # three consecutive Enters send the message
-history_size = 100       # sent messages kept for Ctrl+P / Ctrl+N recall
+ratio = 0.25         # box height as a fraction of the target pane
+enter_send_count = 2 # consecutive Enters that send the message; 0 disables
+history_size = 100   # sent messages kept for Ctrl+P / Ctrl+N / Ctrl+R recall
 ```
 
 ## How it works
